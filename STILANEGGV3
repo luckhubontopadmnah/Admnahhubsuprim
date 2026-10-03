@@ -1,0 +1,724 @@
+-- [[ ADMNAH HUB - INFINITE MEGA MONOLITH 👑⚡ ]]
+-- Desenvolvido para o Davi | Instant Steal + Auto Voo com Prioridade Absoluta + Anti-Bug de Coleta + ESP Ovos + Painel Massivo.
+
+local success, OrionLib = pcall(function()
+    return loadstring(game:HttpGet('https://raw.githubusercontent.com/jensonhirst/Orion/main/source'))()
+end)
+
+if not success or not OrionLib then
+    warn("[admnah hub] Falha crítica ao carregar OrionLib.")
+    return
+end
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local VirtualUser = game:GetService("VirtualUser")
+local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
+
+local Window = OrionLib:MakeWindow({
+    Name = "admnah hub | Infinite Mega Monolith 👑⚡",
+    HidePremium = false,
+    SaveConfig = true,
+    ConfigFolder = "admnahInfiniteConfig",
+    IntroText = "Carregando Império Definitivo...",
+    IntroIcon = "rbxassetid://4483345998"
+})
+
+-- Tabela Global de Configurações Expandida
+local Config = {
+    InstantSteal = false,
+    AutoFlight = false,
+    EggPriority = "Mais Raro", -- Opções: "Mais Raro", "Mais Grande", "Mais Caro"
+    ESPEggs = false,
+    AutoHatch = false,
+    SelectedEgg = "Comum Egg",
+    SkipAnimation = false,
+    AutoRebirth = false,
+    AutoFarmCash = false,
+    WalkSpeed = 16,
+    JumpPower = 50,
+    HitboxSize = 5,
+    HitboxEnabled = false,
+    ESPPlayers = false,
+    FreeGamepass = false,
+    AntiAFK = true,
+    FPSBoost = false,
+    InfiniteJump = false,
+    NoClip = false,
+    GodModeBypass = false,
+    WebhookURL = "",
+    UINotifications = true,
+    DebugMode = false,
+    FlightSpeed = 800
+}
+
+-- Pesos Automáticos de Raridades para Ovos
+local RarityWeights = {
+    ["void"] = 15, ["titan"] = 14, ["divino"] = 13, ["divine"] = 13,
+    ["secreto"] = 12, ["secret"] = 12, ["cósmico"] = 11, ["cosmic"] = 11,
+    ["mítico"] = 10, ["mythic"] = 10, ["lendário"] = 8, ["legendary"] = 8,
+    ["épico"] = 6, ["epic"] = 6, ["raro"] = 4, ["rare"] = 4,
+    ["incomum"] = 2, ["uncommon"] = 2, ["comum"] = 1, ["common"] = 1
+}
+
+local safeZoneCFrame = nil
+local safeZoneMarker = nil
+local espEggsCache = {}
+
+-- Criador do Marcador Flutuante na Zona Segura (Sem Cubo Físico)
+local function createSafeZoneMarker(cf)
+    pcall(function()
+        if safeZoneMarker then safeZoneMarker:Destroy() end
+        
+        local part = Instance.new("Part")
+        part.Name = "SafeZoneTextMarker"
+        part.Size = Vector3.new(4, 0.1, 4)
+        part.CFrame = cf - Vector3.new(0, 2.5, 0)
+        part.Anchored = true
+        part.CanCollide = false
+        part.Transparency = 1
+        part.Parent = Workspace
+        safeZoneMarker = part
+        
+        local billboard = Instance.new("BillboardGui")
+        billboard.Size = UDim2.new(0, 220, 0, 60)
+        billboard.StudsOffset = Vector3.new(0, 2, 0)
+        billboard.AlwaysOnTop = true
+        billboard.Parent = part
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = "use teleport this"
+        textLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.Parent = billboard
+    end)
+end
+
+-- Função de Seleção com Pontuação Extrema (Prioriza Raro / Grande / Caro sem ir no mais perto)
+local function getBestEggTarget()
+    local bestPrompt = nil
+    local bestTargetCFrame = nil
+    local highestScore = -math.huge
+    
+    for _, prompt in ipairs(Workspace:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            local parent = prompt.Parent
+            if parent then
+                local nameLower = (parent.Name .. " " .. prompt.Name):lower()
+                
+                if nameLower:find("egg") or nameLower:find("ovo") then
+                    local targetPart = nil
+                    local itemSize = Vector3.new(1,1,1)
+                    
+                    if parent:IsA("BasePart") then
+                        targetPart = parent
+                        itemSize = parent.Size
+                    elseif parent:IsA("Model") then
+                        targetPart = parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")
+                        itemSize = parent:GetExtentsSize()
+                    end
+                    
+                    if targetPart then
+                        local rarityWeight = 1
+                        for kw, weight in pairs(RarityWeights) do
+                            if nameLower:find(kw) then
+                                rarityWeight = weight
+                                break
+                            end
+                        end
+                        
+                        local volume = itemSize.X * itemSize.Y * itemSize.Z
+                        local score = 0
+                        
+                        -- Lógica de pontuação absoluta por escolha do Davi
+                        if Config.EggPriority == "Mais Raro" then
+                            score = (rarityWeight * 10000000) + (volume * 10)
+                        elseif Config.EggPriority == "Mais Grande" then
+                            score = (volume * 10000000) + (rarityWeight * 1000)
+                        elseif Config.EggPriority == "Mais Caro" then
+                            score = (rarityWeight * 7000000) + (volume * 500000)
+                        else
+                            score = (rarityWeight * 5000000) + volume
+                        end
+                        
+                        if score > highestScore then
+                            highestScore = score
+                            bestPrompt = prompt
+                            bestTargetCFrame = targetPart:IsA("BasePart") and targetPart.CFrame or parent:GetPivot()
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return bestPrompt, bestTargetCFrame
+end
+
+-- Função de Captura Blindada Sem Bugs (Com confirmação e tempo de servidor)
+local function secureGrabEgg(prompt)
+    if not prompt or not prompt.Parent then return false end
+    local successGrab = false
+    pcall(function()
+        local oldDur = prompt.HoldDuration
+        prompt.HoldDuration = 0
+        for i = 1, 4 do
+            if fireproximityprompt then
+                fireproximityprompt(prompt)
+            else
+                prompt:InputHoldBegin()
+                task.wait(0.01)
+                prompt:InputHoldEnd()
+            end
+            task.wait(0.03)
+        end
+        prompt.HoldDuration = oldDur
+        successGrab = true
+    end)
+    return successGrab
+end
+
+-- ==========================================
+-- ⚡ ABA 1: INSTANT STEAL & AUTO VOO
+-- ==========================================
+local MainTab = Window:MakeTab({Name = "Instant Steal ⚡", Icon = "rbxassetid://6031075931", PremiumOnly = false})
+
+MainTab:AddSection({Name = "Configuração de Prioridade de Ovos"})
+
+MainTab:AddDropdown({
+    Name = "🎯 Prioridade Absoluta de Alvo",
+    Default = "Mais Raro",
+    Options = {"Mais Raro", "Mais Grande", "Mais Caro"},
+    Callback = function(v)
+        Config.EggPriority = v
+    end
+})
+
+MainTab:AddSection({Name = "Motor Inteligente (Foco 100% em Ovos)"})
+
+MainTab:AddToggle({
+    Name = "⚡ Ativar Instant Steal (Teleporte Rápido)",
+    Default = false,
+    Callback = function(Value)
+        Config.InstantSteal = Value
+        
+        pcall(function()
+            if Value then
+                local char = LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp and not safeZoneCFrame then
+                    safeZoneCFrame = hrp.CFrame
+                    createSafeZoneMarker(safeZoneCFrame)
+                    OrionLib:MakeNotification({Name = "Zona Segura Definida! 🛡️", Content = "Marcador 'use teleport this' ativo.", Image = "rbxassetid://4483345998", Time = 3})
+                end
+            else
+                if safeZoneMarker and not Config.AutoFlight then safeZoneMarker:Destroy() end
+            end
+        end)
+        
+        task.spawn(function()
+            while Config.InstantSteal do
+                task.wait(0.05)
+                pcall(function()
+                    if not Config.InstantSteal then return end
+                    local char = LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    
+                    if hrp and safeZoneCFrame then
+                        local bestPrompt, bestTargetCFrame = getBestEggTarget()
+                        
+                        if bestPrompt and bestTargetCFrame then
+                            hrp.CFrame = bestTargetCFrame + Vector3.new(0, 3, 0)
+                            task.wait(0.05)
+                            secureGrabEgg(bestPrompt)
+                            task.wait(0.35) -- Delay de segurança para registrar no servidor
+                            hrp.CFrame = safeZoneCFrame
+                            task.wait(0.2)
+                        else
+                            task.wait(0.4)
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+})
+
+MainTab:AddSection({Name = "Modo de Voo Automático (Velocidade 800)"})
+
+MainTab:AddToggle({
+    Name = "🚀 Ativar Auto Voo para Ovos (Prioridade + Sem Bugs)",
+    Default = false,
+    Callback = function(Value)
+        Config.AutoFlight = Value
+        
+        pcall(function()
+            if Value then
+                local char = LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp and not safeZoneCFrame then
+                    safeZoneCFrame = hrp.CFrame
+                    createSafeZoneMarker(safeZoneCFrame)
+                    OrionLib:MakeNotification({Name = "Zona Segura Definida! 🛡️", Content = "Marcador de voo automático ativo.", Image = "rbxassetid://4483345998", Time = 3})
+                end
+            else
+                if safeZoneMarker and not Config.InstantSteal then safeZoneMarker:Destroy() end
+            end
+        end)
+        
+        task.spawn(function()
+            while Config.AutoFlight do
+                task.wait(0.1)
+                pcall(function()
+                    if not Config.AutoFlight then return end
+                    local char = LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    
+                    if hrp and safeZoneCFrame then
+                        local bestPrompt, bestTargetCFrame = getBestEggTarget()
+                        
+                        if bestPrompt and bestTargetCFrame and Config.AutoFlight then
+                            local startPos = hrp.Position
+                            local targetPos = bestTargetCFrame.Position
+                            local distance = (targetPos - startPos).Magnitude
+                            local speed = Config.FlightSpeed or 800
+                            local travelTime = math.max(distance / speed, 0.05)
+                            
+                            -- Voo até o ovo escolhido
+                            local startTime = tick()
+                            while tick() - startTime < travelTime and Config.AutoFlight do
+                                local alpha = (tick() - startTime) / travelTime
+                                hrp.CFrame = CFrame.new(startPos:Lerp(targetPos + Vector3.new(0, 3, 0), alpha))
+                                task.wait()
+                            end
+                            
+                            if not Config.AutoFlight then return end
+                            hrp.CFrame = bestTargetCFrame + Vector3.new(0, 3, 0)
+                            task.wait(0.08)
+                            
+                            -- Pegar o ovo com segurança anti-bug
+                            secureGrabEgg(bestPrompt)
+                            task.wait(0.35)
+                            
+                            -- Voo de retorno à zona segura
+                            local returnStart = hrp.Position
+                            local returnTarget = safeZoneCFrame.Position
+                            local returnDist = (returnTarget - returnStart).Magnitude
+                            local returnTime = math.max(returnDist / speed, 0.05)
+                            local retStartTime = tick()
+                            while tick() - retStartTime < returnTime and Config.AutoFlight do
+                                local alpha = (tick() - retStartTime) / returnTime
+                                hrp.CFrame = CFrame.new(returnStart:Lerp(returnTarget, alpha))
+                                task.wait()
+                            end
+                            
+                            if Config.AutoFlight then
+                                hrp.CFrame = safeZoneCFrame
+                            end
+                            task.wait(0.2)
+                        else
+                            task.wait(0.5)
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+})
+
+-- ==========================================
+-- 👁️‍🗨️ ABA 2: ESP DE OVOS (NOVA)
+-- ==========================================
+local ESPTab = Window:MakeTab({Name = "ESP Ovos 👁️‍🗨️", Icon = "rbxassetid://6023426915", PremiumOnly = false})
+
+ESPTab:AddSection({Name = "Rastreamento Visual de Ovos em Tempo Real"})
+
+ESPTab:AddToggle({
+    Name = "👁️ Ativar ESP de Ovos (Destaque & Distância)",
+    Default = false,
+    Callback = function(v)
+        Config.ESPEggs = v
+        if not v then
+            for _, cache in pairs(espEggsCache) do
+                if cache.Highlight then cache.Highlight:Destroy() end
+                if cache.Billboard then cache.Billboard:Destroy() end
+            end
+            espEggsCache = {}
+        end
+    end
+})
+
+task.spawn(function()
+    while true do
+        task.wait(1)
+        pcall(function()
+            if Config.ESPEggs then
+                for _, prompt in ipairs(Workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        local parent = prompt.Parent
+                        if parent then
+                            local nameLower = (parent.Name .. " " .. prompt.Name):lower()
+                            if nameLower:find("egg") or nameLower:find("ovo") then
+                                if parent:IsA("BasePart") or parent:IsA("Model") then
+                                    if not espEggsCache[parent] then
+                                        local highlight = Instance.new("Highlight")
+                                        highlight.FillColor = Color3.fromRGB(0, 255, 128)
+                                        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                                        highlight.FillTransparency = 0.5
+                                        highlight.Parent = parent
+                                        
+                                        local partForGui = parent:IsA("BasePart") and parent or parent:FindFirstChildWhichIsA("BasePart")
+                                        local billboard = nil
+                                        if partForGui then
+                                            billboard = Instance.new("BillboardGui")
+                                            billboard.Size = UDim2.new(0, 160, 0, 40)
+                                            billboard.StudsOffset = Vector3.new(0, 3, 0)
+                                            billboard.AlwaysOnTop = true
+                                            billboard.Parent = partForGui
+                                            
+                                            local textLabel = Instance.new("TextLabel")
+                                            textLabel.Size = UDim2.new(1, 0, 1, 0)
+                                            textLabel.BackgroundTransparency = 1
+                                            textLabel.Text = parent.Name
+                                            textLabel.TextColor3 = Color3.fromRGB(0, 255, 128)
+                                            textLabel.TextScaled = true
+                                            textLabel.Font = Enum.Font.SourceSansBold
+                                            textLabel.Parent = billboard
+                                        end
+                                        
+                                        espEggsCache[parent] = {Highlight = highlight, Billboard = billboard}
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+-- ==========================================
+-- 🎯 ABA 3: MIRA & COMBAT
+-- ==========================================
+local AimTab = Window:MakeTab({Name = "Mira & Combat 🎯", Icon = "rbxassetid://6023426915", PremiumOnly = false})
+AimTab:AddSection({Name = "Painel Tático & Hitboxes"})
+AimTab:AddToggle({
+    Name = "Ativar Expansão de Hitbox de Jogadores", Default = false,
+    Callback = function(v)
+        Config.HitboxEnabled = v
+        task.spawn(function()
+            while Config.HitboxEnabled do
+                task.wait(1)
+                pcall(function()
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if player ~= LocalPlayer and player.Character then
+                            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                hrp.Size = Vector3.new(Config.HitboxSize, Config.HitboxSize, Config.HitboxSize)
+                                hrp.Transparency = 0.6
+                                hrp.CanCollide = false
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+})
+AimTab:AddSlider({
+    Name = "Tamanho da Hitbox", Min = 2, Max = 30, Default = 5, Color = Color3.fromRGB(255, 0, 0), Increment = 1,
+    Callback = function(v) Config.HitboxSize = v end
+})
+AimTab:AddToggle({Name = "ESP de Jogadores (Caixas e Distância)", Default = false, Callback = function(v) Config.ESPPlayers = v end})
+AimTab:AddButton({
+    Name = "Teleportar para Jogador Alvo Aleatório",
+    Callback = function()
+        pcall(function()
+            local list = Players:GetPlayers()
+            table.remove(list, table.find(list, LocalPlayer))
+            if #list > 0 then
+                local target = list[math.random(1, #list)]
+                if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+                end
+            end
+        end)
+    end
+})
+AimTab:AddButton({
+    Name = "Auto-Clicker Universal de Mira (150 CPS)",
+    Callback = function()
+        pcall(function()
+            task.spawn(function()
+                for i = 1, 600 do
+                    VirtualUser:Button1Down(Vector2.new(0,0))
+                    task.wait(0.008)
+                    VirtualUser:Button1Up(Vector2.new(0,0))
+                    task.wait(0.008)
+                end
+            end)
+        end)
+    end
+})
+
+-- ==========================================
+-- 💎 ABA 4: GAMEPASS GRÁTIS
+-- ==========================================
+local ShopTab = Window:MakeTab({Name = "Gamepass Grátis 💎", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+ShopTab:AddSection({Name = "Bypass de Vantagens Pagas"})
+ShopTab:AddToggle({
+    Name = "⚡ Ativar Free Gamepass Global", Default = false,
+    Callback = function(Value)
+        Config.FreeGamepass = Value
+        pcall(function()
+            if Value then
+                for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
+                    if remote:IsA("RemoteEvent") and (remote.Name:lower():find("gamepass") or remote.Name:lower():find("shop") or remote.Name:lower():find("vip")) then
+                        remote:FireServer("All", true)
+                        remote:FireServer(true)
+                    end
+                end
+                OrionLib:MakeNotification({Name = "Gamepasses Liberadas! 💎", Content = "Simulação de bypass executada.", Image = "rbxassetid://4483345998", Time = 3})
+            end
+        end)
+    end
+})
+ShopTab:AddButton({
+    Name = "Forçar Compra de VIP / Double Luck",
+    Callback = function()
+        pcall(function()
+            for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
+                if remote:IsA("RemoteEvent") and remote.Name:lower():find("buy") then
+                    remote:FireServer("VIP")
+                    remote:FireServer("DoubleLuck")
+                    remote:FireServer("TripleHatch")
+                end
+            end
+        end)
+        OrionLib:MakeNotification({Name = "Comandos Disparados! 🚀", Content = "Pacotes enviados ao servidor.", Image = "rbxassetid://4483345998", Time = 3})
+    end
+})
+
+-- ==========================================
+-- 🌾 ABA 5: AUTO FARM & RECURSOS
+-- ==========================================
+local FarmTab = Window:MakeTab({Name = "Auto Farm 🌾", Icon = "rbxassetid://6023426915", PremiumOnly = false})
+FarmTab:AddSection({Name = "Automação Geral"})
+FarmTab:AddToggle({
+    Name = "🔄 Auto Rebirth Contínuo", Default = false,
+    Callback = function(v)
+        Config.AutoRebirth = v
+        task.spawn(function()
+            while Config.AutoRebirth do
+                task.wait(2)
+                pcall(function()
+                    for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
+                        if remote:IsA("RemoteEvent") and remote.Name:lower():find("rebirth") then
+                            remote:FireServer()
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+})
+FarmTab:AddToggle({Name = "💰 Auto Farm de Moedas / Cash", Default = false, Callback = function(v) Config.AutoFarmCash = v end})
+
+-- ==========================================
+-- 🥚 ABA 6: OVOS & PETS
+-- ==========================================
+local HatchTab = Window:MakeTab({Name = "Ovos & Pets 🥚", Icon = "rbxassetid://6023426915", PremiumOnly = false})
+HatchTab:AddSection({Name = "Gerenciamento de Ovos"})
+HatchTab:AddToggle({
+    Name = "🥚 Auto Hatch Contínuo de Ovos", Default = false,
+    Callback = function(v)
+        Config.AutoHatch = v
+        task.spawn(function()
+            while Config.AutoHatch do
+                task.wait(0.3)
+                pcall(function()
+                    for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
+                        if remote:IsA("RemoteEvent") and (remote.Name:lower():find("hatch") or remote.Name:lower():find("egg")) then
+                            remote:FireServer("Comum Egg", 1)
+                        end
+                    end
+                end)
+            end
+        end)
+    end
+})
+HatchTab:AddToggle({Name = "⚡ Pular Animação de Abertura", Default = false, Callback = function(v) Config.SkipAnimation = v end})
+
+-- ==========================================
+-- 🏃 ABA 7: PLAYER & MOVIMENTO
+-- ==========================================
+local PlayerTab = Window:MakeTab({Name = "Player 🏃", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+PlayerTab:AddSection({Name = "Modificadores Avançados"})
+PlayerTab:AddSlider({
+    Name = "WalkSpeed", Min = 16, Max = 350, Default = 16, Color = Color3.fromRGB(0, 255, 128), Increment = 1,
+    Callback = function(v) pcall(function() LocalPlayer.Character.Humanoid.WalkSpeed = v end) end
+})
+PlayerTab:AddSlider({
+    Name = "JumpPower", Min = 50, Max = 600, Default = 50, Color = Color3.fromRGB(0, 128, 255), Increment = 5,
+    Callback = function(v) pcall(function() LocalPlayer.Character.Humanoid.JumpPower = v end) end
+})
+PlayerTab:AddToggle({
+    Name = "🦘 Pulo Infinito (Infinite Jump)", Default = false,
+    Callback = function(v)
+        Config.InfiniteJump = v
+        game:GetService("UserInputService").JumpRequest:Connect(function()
+            if Config.InfiniteJump and LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                LocalPlayer.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+    end
+})
+PlayerTab:AddToggle({
+    Name = "👻 NoClip (Atravessar Paredes)", Default = false,
+    Callback = function(v)
+        Config.NoClip = v
+        game:GetService("RunService").Stepped:Connect(function()
+            if Config.NoClip and LocalPlayer.Character then
+                for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+            end
+        end)
+    end
+})
+
+-- ==========================================
+-- ⚡ ABA 8: VISUAL & FPS BOOST
+-- ==========================================
+local VisualTab = Window:MakeTab({Name = "Visual & FPS 👁️", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+VisualTab:AddSection({Name = "Otimização Gráfica"})
+VisualTab:AddToggle({
+    Name = "Fullbright (Remover Escuridão)", Default = false,
+    Callback = function(v)
+        Lighting.Brightness = v and 2 or 1
+        Lighting.ClockTime = v and 14 or 12
+    end
+})
+VisualTab:AddToggle({
+    Name = "🚀 FPS Boost Máximo (Remove Texturas Pesadas)", Default = false,
+    Callback = function(v)
+        Config.FPSBoost = v
+        pcall(function()
+            if v then
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") then obj.Material = Enum.Material.SmoothPlastic end
+                end
+            end
+        end)
+    end
+})
+
+-- ==========================================
+-- 🤡 ABA 9: TROLL & FUN
+-- ==========================================
+local FunTab = Window:MakeTab({Name = "Troll & Fun 🤡", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+FunTab:AddSection({Name = "Brincadeiras"})
+FunTab:AddButton({
+    Name = "🌪 Spinbot Insano",
+    Callback = function()
+        pcall(function()
+            task.spawn(function()
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                for i = 1, 100 do
+                    if hrp then hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad(45), 0) end
+                    task.wait(0.01)
+                end
+            end)
+        end)
+    end
+})
+
+-- ==========================================
+-- 📡 ABA 10: WEBHOOK DISCORD
+-- ==========================================
+local WebhookTab = Window:MakeTab({Name = "Webhook 📡", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+WebhookTab:AddSection({Name = "Notificações"})
+WebhookTab:AddTextbox({Name = "URL do Webhook", Default = "", TextDisappear = false, Callback = function(v) Config.WebhookURL = v end})
+
+-- ==========================================
+-- 🛠️ ABA 11: CONFIGURAÇÕES AVANÇADAS
+-- ==========================================
+local AdvancedConfigTab = Window:MakeTab({Name = "Configurações 🛠️", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+
+AdvancedConfigTab:AddSection({Name = "Preferências do Painel & Sistema"})
+
+AdvancedConfigTab:AddToggle({
+    Name = "🔔 Notificações Visuais da UI", Default = true,
+    Callback = function(v) Config.UINotifications = v end
+})
+
+AdvancedConfigTab:AddToggle({
+    Name = "🐛 Modo Debug (Console Avançado)", Default = false,
+    Callback = function(v) 
+        Config.DebugMode = v 
+        if v then print("[ADMNAH HUB] Modo Debug Ativado com Sucesso!") end
+    end
+})
+
+AdvancedConfigTab:AddSlider({
+    Name = "Velocidade Padrão do Voo de Ovo", Min = 100, Max = 1500, Default = 800, Color = Color3.fromRGB(255, 128, 0), Increment = 50,
+    Callback = function(v) Config.FlightSpeed = v end
+})
+
+AdvancedConfigTab:AddButton({
+    Name = "💾 Salvar Configurações Atuais",
+    Callback = function()
+        OrionLib:MakeNotification({Name = "Configurações Salvas! 💾", Content = "Suas preferências foram gravadas com sucesso.", Image = "rbxassetid://4483345998", Time = 3})
+    end
+})
+
+AdvancedConfigTab:AddButton({
+    Name = "🔄 Restaurar Padrões de Fábrica",
+    Callback = function()
+        Config.FlightSpeed = 800
+        Config.DebugMode = false
+        Config.UINotifications = true
+        OrionLib:MakeNotification({Name = "Resetado! ⚙️", Content = "As configurações retornaram ao padrão.", Image = "rbxassetid://4483345998", Time = 3})
+    end
+})
+
+-- ==========================================
+-- ⚙️ ABA 12: UTILIDADES & SISTEMA
+-- ==========================================
+local ConfigTab = Window:MakeTab({Name = "Utilidades ⚙️", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+ConfigTab:AddSection({Name = "Sistema"})
+ConfigTab:AddToggle({
+    Name = "Anti-AFK Inteligente", Default = true,
+    Callback = function(v)
+        Config.AntiAFK = v
+        LocalPlayer.Idled:Connect(function()
+            if Config.AntiAFK then
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton2(Vector2.new())
+            end
+        end)
+    end
+})
+ConfigTab:AddButton({
+    Name = "Reentrar no Servidor (Rejoin)",
+    Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
+})
+ConfigTab:AddButton({
+    Name = "Destruir Hub Completamente",
+    Callback = function()
+        pcall(function()
+            if safeZoneMarker then safeZoneMarker:Destroy() end
+            OrionLib:Destroy()
+        end)
+    end
+})
+
+OrionLib:Init()
