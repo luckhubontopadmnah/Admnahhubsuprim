@@ -1,12 +1,12 @@
--- [[ ADMNAH HUB - INFINITE MEGA MONOLITH 👑⚡ ]]
--- Desenvolvido para o Davi | Instant Steal + Auto Voo com Prioridade Absoluta + Anti-Bug de Coleta + ESP Ovos + Painel Massivo.
+-- [[ ADMNAH HUB - INFINITE MEGA MONOLITH (WINDUI EDITION + ANT GUARD) 👑⚡ ]]
+-- Desenvolvido para o Davi | Instant Steal + Auto Voo + Ant Guard + ESP Ovos + Painel Massivo.
 
-local success, OrionLib = pcall(function()
-    return loadstring(game:HttpGet('https://raw.githubusercontent.com/jensonhirst/Orion/main/source'))()
+local success, WindUI = pcall(function()
+    return loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
 end)
 
-if not success or not OrionLib then
-    warn("[admnah hub] Falha crítica ao carregar OrionLib.")
+if not success or not WindUI then
+    warn("[admnah hub] Falha crítica ao carregar WindUI.")
     return
 end
 
@@ -17,22 +17,38 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Lighting = game:GetService("Lighting")
 local VirtualUser = game:GetService("VirtualUser")
 local TeleportService = game:GetService("TeleportService")
-local CoreGui = game:GetService("CoreGui")
 
-local Window = OrionLib:MakeWindow({
-    Name = "admnah hub | Infinite Mega Monolith 👑⚡",
-    HidePremium = false,
-    SaveConfig = true,
-    ConfigFolder = "admnahInfiniteConfig",
-    IntroText = "Carregando Império Definitivo...",
-    IntroIcon = "rbxassetid://4483345998"
+local Window = WindUI:CreateWindow({
+    Title = "admnah hub | Infinite Mega Monolith 👑⚡",
+    Icon = "crown",
+    Author = "Desenvolvido para o Davi",
+    Folder = "admnahInfiniteConfig",
+    Size = UDim2.fromOffset(600, 450),
+    Transparent = true,
+    Theme = "Dark",
+    Resizable = true,
+    SideBarWidth = 180,
+    ScrollBarEnabled = true,
+})
+
+Window:Tag({
+    Title = "VIP v2.0",
+    Color = Color3.fromRGB(0, 255, 128),
+})
+
+WindUI:Notify({
+    Title = "admnah hub 👑⚡",
+    Content = "Império Definitivo com Ant Guard Carregado!",
+    Duration = 5,
+    Icon = "check",
 })
 
 -- Tabela Global de Configurações Expandida
 local Config = {
     InstantSteal = false,
     AutoFlight = false,
-    EggPriority = "Mais Raro", -- Opções: "Mais Raro", "Mais Grande", "Mais Caro"
+    AntGuard = false,
+    EggPriority = "Mais Raro",
     ESPEggs = false,
     AutoHatch = false,
     SelectedEgg = "Comum Egg",
@@ -68,8 +84,9 @@ local RarityWeights = {
 local safeZoneCFrame = nil
 local safeZoneMarker = nil
 local espEggsCache = {}
+local processedAntGuardPrompts = {}
 
--- Criador do Marcador Flutuante na Zona Segura (Sem Cubo Físico)
+-- Criador do Marcador Flutuante na Zona Segura
 local function createSafeZoneMarker(cf)
     pcall(function()
         if safeZoneMarker then safeZoneMarker:Destroy() end
@@ -101,7 +118,7 @@ local function createSafeZoneMarker(cf)
     end)
 end
 
--- Função de Seleção com Pontuação Extrema (Prioriza Raro / Grande / Caro sem ir no mais perto)
+-- Função de Seleção com Pontuação Extrema
 local function getBestEggTarget()
     local bestPrompt = nil
     local bestTargetCFrame = nil
@@ -137,7 +154,6 @@ local function getBestEggTarget()
                         local volume = itemSize.X * itemSize.Y * itemSize.Z
                         local score = 0
                         
-                        -- Lógica de pontuação absoluta por escolha do Davi
                         if Config.EggPriority == "Mais Raro" then
                             score = (rarityWeight * 10000000) + (volume * 10)
                         elseif Config.EggPriority == "Mais Grande" then
@@ -162,7 +178,7 @@ local function getBestEggTarget()
     return bestPrompt, bestTargetCFrame
 end
 
--- Função de Captura Blindada Sem Bugs (Com confirmação e tempo de servidor)
+-- Função de Captura Blindada Sem Bugs
 local function secureGrabEgg(prompt)
     if not prompt or not prompt.Parent then return false end
     local successGrab = false
@@ -186,29 +202,112 @@ local function secureGrabEgg(prompt)
 end
 
 -- ==========================================
+-- 🛡️ ABA NOVA: ANT GUARD
+-- ==========================================
+local AntGuardTab = Window:Tab({Title = "Ant Guard 🛡️", Icon = "shield"})
+
+AntGuardTab:Section({Title = "Sistema de Disparo & Teleporte Rápido"})
+
+AntGuardTab:Toggle({
+    Title = "🛡️ Ativar Ant Guard (ProximityPrompt Instantâneo)",
+    Default = false,
+    Callback = function(v)
+        Config.AntGuard = v
+        pcall(function()
+            if v then
+                local char = LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local originalCFrame = hrp.CFrame
+                    if Config.UINotifications then
+                        WindUI:Notify({Title = "Ant Guard Ativado! 🛡️", Content = "Varredura rápida de ProximityPrompts ligada.", Duration = 3, Icon = "shield"})
+                    end
+                    
+                    task.spawn(function()
+                        while Config.AntGuard do
+                            local executedAny = false
+                            for _, prompt in ipairs(Workspace:GetDescendants()) do
+                                if not Config.AntGuard then break end
+                                if prompt:IsA("ProximityPrompt") and not processedAntGuardPrompts[prompt] then
+                                    local parent = prompt.Parent
+                                    local targetPart = nil
+                                    if parent then
+                                        if parent:IsA("BasePart") then
+                                            targetPart = parent
+                                        elseif parent:IsA("Model") then
+                                            targetPart = parent.PrimaryPart or parent:FindFirstChildWhichIsA("BasePart")
+                                        end
+                                    end
+                                    
+                                    if targetPart and hrp then
+                                        processedAntGuardPrompts[prompt] = true
+                                        local targetCF = targetPart:IsA("BasePart") and targetPart.CFrame or parent:GetPivot()
+                                        
+                                        -- Teleporte ultra-rápido para o prompt
+                                        hrp.CFrame = targetCF + Vector3.new(0, 3, 0)
+                                        task.wait(0.01)
+                                        
+                                        -- Disparar ação instantânea
+                                        pcall(function()
+                                            local oldDur = prompt.HoldDuration
+                                            prompt.HoldDuration = 0
+                                            if fireproximityprompt then
+                                                fireproximityprompt(prompt)
+                                            else
+                                                prompt:InputHoldBegin()
+                                                task.wait(0.01)
+                                                prompt:InputHoldEnd()
+                                            end
+                                            prompt.HoldDuration = oldDur
+                                        end)
+                                        
+                                        task.wait(0.03)
+                                        -- Retornar à posição original de onde ativou
+                                        hrp.CFrame = originalCFrame
+                                        task.wait(0.05)
+                                        executedAny = true
+                                    end
+                                end
+                            end
+                            if not executedAny then
+                                task.wait(0.3)
+                            end
+                        end
+                    end)
+                end
+            else
+                processedAntGuardPrompts = {}
+                if Config.UINotifications then
+                    WindUI:Notify({Title = "Ant Guard Desativado! ⚙️", Content = "Sistema encerrado.", Duration = 3, Icon = "x"})
+                end
+            end
+        end)
+    end
+})
+
+-- ==========================================
 -- ⚡ ABA 1: INSTANT STEAL & AUTO VOO
 -- ==========================================
-local MainTab = Window:MakeTab({Name = "Instant Steal ⚡", Icon = "rbxassetid://6031075931", PremiumOnly = false})
+local MainTab = Window:Tab({Title = "Instant Steal ⚡", Icon = "zap"})
 
-MainTab:AddSection({Name = "Configuração de Prioridade de Ovos"})
+MainTab:Section({Title = "Configuração de Prioridade de Ovos"})
 
-MainTab:AddDropdown({
-    Name = "🎯 Prioridade Absoluta de Alvo",
+MainTab:Dropdown({
+    Title = "🎯 Prioridade Absoluta de Alvo",
+    Values = {"Mais Raro", "Mais Grande", "Mais Caro"},
     Default = "Mais Raro",
-    Options = {"Mais Raro", "Mais Grande", "Mais Caro"},
     Callback = function(v)
         Config.EggPriority = v
     end
 })
 
-MainTab:AddSection({Name = "Motor Inteligente (Foco 100% em Ovos)"})
+MainTab:Section({Title = "Motor Inteligente (Foco 100% em Ovos)"})
 
-MainTab:AddToggle({
-    Name = "⚡ Ativar Instant Steal (Teleporte Rápido)",
+MainTab:Toggle({
+    Title = "⚡ Ativar Instant Steal (Teleporte Rápido)",
     Default = false,
     Callback = function(Value)
         Config.InstantSteal = Value
-        
         pcall(function()
             if Value then
                 local char = LocalPlayer.Character
@@ -216,7 +315,9 @@ MainTab:AddToggle({
                 if hrp and not safeZoneCFrame then
                     safeZoneCFrame = hrp.CFrame
                     createSafeZoneMarker(safeZoneCFrame)
-                    OrionLib:MakeNotification({Name = "Zona Segura Definida! 🛡️", Content = "Marcador 'use teleport this' ativo.", Image = "rbxassetid://4483345998", Time = 3})
+                    if Config.UINotifications then
+                        WindUI:Notify({Title = "Zona Segura Definida! 🛡️", Content = "Marcador 'use teleport this' ativo.", Duration = 3, Icon = "shield"})
+                    end
                 end
             else
                 if safeZoneMarker and not Config.AutoFlight then safeZoneMarker:Destroy() end
@@ -238,7 +339,7 @@ MainTab:AddToggle({
                             hrp.CFrame = bestTargetCFrame + Vector3.new(0, 3, 0)
                             task.wait(0.05)
                             secureGrabEgg(bestPrompt)
-                            task.wait(0.35) -- Delay de segurança para registrar no servidor
+                            task.wait(0.35)
                             hrp.CFrame = safeZoneCFrame
                             task.wait(0.2)
                         else
@@ -251,14 +352,13 @@ MainTab:AddToggle({
     end
 })
 
-MainTab:AddSection({Name = "Modo de Voo Automático (Velocidade 800)"})
+MainTab:Section({Title = "Modo de Voo Automático (Velocidade 800)"})
 
-MainTab:AddToggle({
-    Name = "🚀 Ativar Auto Voo para Ovos (Prioridade + Sem Bugs)",
+MainTab:Toggle({
+    Title = "🚀 Ativar Auto Voo para Ovos (Prioridade + Sem Bugs)",
     Default = false,
     Callback = function(Value)
         Config.AutoFlight = Value
-        
         pcall(function()
             if Value then
                 local char = LocalPlayer.Character
@@ -266,7 +366,9 @@ MainTab:AddToggle({
                 if hrp and not safeZoneCFrame then
                     safeZoneCFrame = hrp.CFrame
                     createSafeZoneMarker(safeZoneCFrame)
-                    OrionLib:MakeNotification({Name = "Zona Segura Definida! 🛡️", Content = "Marcador de voo automático ativo.", Image = "rbxassetid://4483345998", Time = 3})
+                    if Config.UINotifications then
+                        WindUI:Notify({Title = "Zona Segura Definida! 🛡️", Content = "Marcador de voo automático ativo.", Duration = 3, Icon = "shield"})
+                    end
                 end
             else
                 if safeZoneMarker and not Config.InstantSteal then safeZoneMarker:Destroy() end
@@ -291,7 +393,6 @@ MainTab:AddToggle({
                             local speed = Config.FlightSpeed or 800
                             local travelTime = math.max(distance / speed, 0.05)
                             
-                            -- Voo até o ovo escolhido
                             local startTime = tick()
                             while tick() - startTime < travelTime and Config.AutoFlight do
                                 local alpha = (tick() - startTime) / travelTime
@@ -303,11 +404,9 @@ MainTab:AddToggle({
                             hrp.CFrame = bestTargetCFrame + Vector3.new(0, 3, 0)
                             task.wait(0.08)
                             
-                            -- Pegar o ovo com segurança anti-bug
                             secureGrabEgg(bestPrompt)
                             task.wait(0.35)
                             
-                            -- Voo de retorno à zona segura
                             local returnStart = hrp.Position
                             local returnTarget = safeZoneCFrame.Position
                             local returnDist = (returnTarget - returnStart).Magnitude
@@ -334,14 +433,14 @@ MainTab:AddToggle({
 })
 
 -- ==========================================
--- 👁️‍🗨️ ABA 2: ESP DE OVOS (NOVA)
+-- 👁️‍🗨️ ABA 2: ESP DE OVOS
 -- ==========================================
-local ESPTab = Window:MakeTab({Name = "ESP Ovos 👁️‍🗨️", Icon = "rbxassetid://6023426915", PremiumOnly = false})
+local ESPTab = Window:Tab({Title = "ESP Ovos 👁️‍🗨️", Icon = "eye"})
 
-ESPTab:AddSection({Name = "Rastreamento Visual de Ovos em Tempo Real"})
+ESPTab:Section({Title = "Rastreamento Visual de Ovos em Tempo Real"})
 
-ESPTab:AddToggle({
-    Name = "👁️ Ativar ESP de Ovos (Destaque & Distância)",
+ESPTab:Toggle({
+    Title = "👁️ Ativar ESP de Ovos (Destaque & Distância)",
     Default = false,
     Callback = function(v)
         Config.ESPEggs = v
@@ -408,10 +507,12 @@ end)
 -- ==========================================
 -- 🎯 ABA 3: MIRA & COMBAT
 -- ==========================================
-local AimTab = Window:MakeTab({Name = "Mira & Combat 🎯", Icon = "rbxassetid://6023426915", PremiumOnly = false})
-AimTab:AddSection({Name = "Painel Tático & Hitboxes"})
-AimTab:AddToggle({
-    Name = "Ativar Expansão de Hitbox de Jogadores", Default = false,
+local AimTab = Window:Tab({Title = "Mira & Combat 🎯", Icon = "target"})
+AimTab:Section({Title = "Painel Tático & Hitboxes"})
+
+AimTab:Toggle({
+    Title = "Ativar Expansão de Hitbox de Jogadores",
+    Default = false,
     Callback = function(v)
         Config.HitboxEnabled = v
         task.spawn(function()
@@ -433,13 +534,22 @@ AimTab:AddToggle({
         end)
     end
 })
-AimTab:AddSlider({
-    Name = "Tamanho da Hitbox", Min = 2, Max = 30, Default = 5, Color = Color3.fromRGB(255, 0, 0), Increment = 1,
+
+AimTab:Slider({
+    Title = "Tamanho da Hitbox",
+    Step = 1,
+    Value = {Min = 2, Max = 30, Default = 5},
     Callback = function(v) Config.HitboxSize = v end
 })
-AimTab:AddToggle({Name = "ESP de Jogadores (Caixas e Distância)", Default = false, Callback = function(v) Config.ESPPlayers = v end})
-AimTab:AddButton({
-    Name = "Teleportar para Jogador Alvo Aleatório",
+
+AimTab:Toggle({
+    Title = "ESP de Jogadores (Caixas e Distância)",
+    Default = false,
+    Callback = function(v) Config.ESPPlayers = v end
+})
+
+AimTab:Button({
+    Title = "Teleportar para Jogador Alvo Aleatório",
     Callback = function()
         pcall(function()
             local list = Players:GetPlayers()
@@ -453,8 +563,9 @@ AimTab:AddButton({
         end)
     end
 })
-AimTab:AddButton({
-    Name = "Auto-Clicker Universal de Mira (150 CPS)",
+
+AimTab:Button({
+    Title = "Auto-Clicker Universal de Mira (150 CPS)",
     Callback = function()
         pcall(function()
             task.spawn(function()
@@ -472,10 +583,12 @@ AimTab:AddButton({
 -- ==========================================
 -- 💎 ABA 4: GAMEPASS GRÁTIS
 -- ==========================================
-local ShopTab = Window:MakeTab({Name = "Gamepass Grátis 💎", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-ShopTab:AddSection({Name = "Bypass de Vantagens Pagas"})
-ShopTab:AddToggle({
-    Name = "⚡ Ativar Free Gamepass Global", Default = false,
+local ShopTab = Window:Tab({Title = "Gamepass Grátis 💎", Icon = "gem"})
+ShopTab:Section({Title = "Bypass de Vantagens Pagas"})
+
+ShopTab:Toggle({
+    Title = "⚡ Ativar Free Gamepass Global",
+    Default = false,
     Callback = function(Value)
         Config.FreeGamepass = Value
         pcall(function()
@@ -486,13 +599,16 @@ ShopTab:AddToggle({
                         remote:FireServer(true)
                     end
                 end
-                OrionLib:MakeNotification({Name = "Gamepasses Liberadas! 💎", Content = "Simulação de bypass executada.", Image = "rbxassetid://4483345998", Time = 3})
+                if Config.UINotifications then
+                    WindUI:Notify({Title = "Gamepasses Liberadas! 💎", Content = "Simulação de bypass executada.", Duration = 3, Icon = "check"})
+                end
             end
         end)
     end
 })
-ShopTab:AddButton({
-    Name = "Forçar Compra de VIP / Double Luck",
+
+ShopTab:Button({
+    Title = "Forçar Compra de VIP / Double Luck",
     Callback = function()
         pcall(function()
             for _, remote in ipairs(ReplicatedStorage:GetDescendants()) do
@@ -503,17 +619,21 @@ ShopTab:AddButton({
                 end
             end
         end)
-        OrionLib:MakeNotification({Name = "Comandos Disparados! 🚀", Content = "Pacotes enviados ao servidor.", Image = "rbxassetid://4483345998", Time = 3})
+        if Config.UINotifications then
+            WindUI:Notify({Title = "Comandos Disparados! 🚀", Content = "Pacotes enviados ao servidor.", Duration = 3, Icon = "check"})
+        end
     end
 })
 
 -- ==========================================
 -- 🌾 ABA 5: AUTO FARM & RECURSOS
 -- ==========================================
-local FarmTab = Window:MakeTab({Name = "Auto Farm 🌾", Icon = "rbxassetid://6023426915", PremiumOnly = false})
-FarmTab:AddSection({Name = "Automação Geral"})
-FarmTab:AddToggle({
-    Name = "🔄 Auto Rebirth Contínuo", Default = false,
+local FarmTab = Window:Tab({Title = "Auto Farm 🌾", Icon = "cpu"})
+FarmTab:Section({Title = "Automação Geral"})
+
+FarmTab:Toggle({
+    Title = "🔄 Auto Rebirth Contínuo",
+    Default = false,
     Callback = function(v)
         Config.AutoRebirth = v
         task.spawn(function()
@@ -530,15 +650,22 @@ FarmTab:AddToggle({
         end)
     end
 })
-FarmTab:AddToggle({Name = "💰 Auto Farm de Moedas / Cash", Default = false, Callback = function(v) Config.AutoFarmCash = v end})
+
+FarmTab:Toggle({
+    Title = "💰 Auto Farm de Moedas / Cash",
+    Default = false,
+    Callback = function(v) Config.AutoFarmCash = v end
+})
 
 -- ==========================================
 -- 🥚 ABA 6: OVOS & PETS
 -- ==========================================
-local HatchTab = Window:MakeTab({Name = "Ovos & Pets 🥚", Icon = "rbxassetid://6023426915", PremiumOnly = false})
-HatchTab:AddSection({Name = "Gerenciamento de Ovos"})
-HatchTab:AddToggle({
-    Name = "🥚 Auto Hatch Contínuo de Ovos", Default = false,
+local HatchTab = Window:Tab({Title = "Ovos & Pets 🥚", Icon = "egg"})
+HatchTab:Section({Title = "Gerenciamento de Ovos"})
+
+HatchTab:Toggle({
+    Title = "🥚 Auto Hatch Contínuo de Ovos",
+    Default = false,
     Callback = function(v)
         Config.AutoHatch = v
         task.spawn(function()
@@ -555,23 +682,36 @@ HatchTab:AddToggle({
         end)
     end
 })
-HatchTab:AddToggle({Name = "⚡ Pular Animação de Abertura", Default = false, Callback = function(v) Config.SkipAnimation = v end})
+
+HatchTab:Toggle({
+    Title = "⚡ Pular Animação de Abertura",
+    Default = false,
+    Callback = function(v) Config.SkipAnimation = v end
+})
 
 -- ==========================================
 -- 🏃 ABA 7: PLAYER & MOVIMENTO
 -- ==========================================
-local PlayerTab = Window:MakeTab({Name = "Player 🏃", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-PlayerTab:AddSection({Name = "Modificadores Avançados"})
-PlayerTab:AddSlider({
-    Name = "WalkSpeed", Min = 16, Max = 350, Default = 16, Color = Color3.fromRGB(0, 255, 128), Increment = 1,
+local PlayerTab = Window:Tab({Title = "Player 🏃", Icon = "user"})
+PlayerTab:Section({Title = "Modificadores Avançados"})
+
+PlayerTab:Slider({
+    Title = "WalkSpeed",
+    Step = 1,
+    Value = {Min = 16, Max = 350, Default = 16},
     Callback = function(v) pcall(function() LocalPlayer.Character.Humanoid.WalkSpeed = v end) end
 })
-PlayerTab:AddSlider({
-    Name = "JumpPower", Min = 50, Max = 600, Default = 50, Color = Color3.fromRGB(0, 128, 255), Increment = 5,
+
+PlayerTab:Slider({
+    Title = "JumpPower",
+    Step = 5,
+    Value = {Min = 50, Max = 600, Default = 50},
     Callback = function(v) pcall(function() LocalPlayer.Character.Humanoid.JumpPower = v end) end
 })
-PlayerTab:AddToggle({
-    Name = "🦘 Pulo Infinito (Infinite Jump)", Default = false,
+
+PlayerTab:Toggle({
+    Title = "🦘 Pulo Infinito (Infinite Jump)",
+    Default = false,
     Callback = function(v)
         Config.InfiniteJump = v
         game:GetService("UserInputService").JumpRequest:Connect(function()
@@ -581,8 +721,10 @@ PlayerTab:AddToggle({
         end)
     end
 })
-PlayerTab:AddToggle({
-    Name = "👻 NoClip (Atravessar Paredes)", Default = false,
+
+PlayerTab:Toggle({
+    Title = "👻 NoClip (Atravessar Paredes)",
+    Default = false,
     Callback = function(v)
         Config.NoClip = v
         game:GetService("RunService").Stepped:Connect(function()
@@ -598,17 +740,21 @@ PlayerTab:AddToggle({
 -- ==========================================
 -- ⚡ ABA 8: VISUAL & FPS BOOST
 -- ==========================================
-local VisualTab = Window:MakeTab({Name = "Visual & FPS 👁️", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-VisualTab:AddSection({Name = "Otimização Gráfica"})
-VisualTab:AddToggle({
-    Name = "Fullbright (Remover Escuridão)", Default = false,
+local VisualTab = Window:Tab({Title = "Visual & FPS 👁️", Icon = "monitor"})
+VisualTab:Section({Title = "Otimização Gráfica"})
+
+VisualTab:Toggle({
+    Title = "Fullbright (Remover Escuridão)",
+    Default = false,
     Callback = function(v)
         Lighting.Brightness = v and 2 or 1
         Lighting.ClockTime = v and 14 or 12
     end
 })
-VisualTab:AddToggle({
-    Name = "🚀 FPS Boost Máximo (Remove Texturas Pesadas)", Default = false,
+
+VisualTab:Toggle({
+    Title = "🚀 FPS Boost Máximo (Remove Texturas Pesadas)",
+    Default = false,
     Callback = function(v)
         Config.FPSBoost = v
         pcall(function()
@@ -624,10 +770,11 @@ VisualTab:AddToggle({
 -- ==========================================
 -- 🤡 ABA 9: TROLL & FUN
 -- ==========================================
-local FunTab = Window:MakeTab({Name = "Troll & Fun 🤡", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-FunTab:AddSection({Name = "Brincadeiras"})
-FunTab:AddButton({
-    Name = "🌪 Spinbot Insano",
+local FunTab = Window:Tab({Title = "Troll & Fun 🤡", Icon = "smile"})
+FunTab:Section({Title = "Brincadeiras"})
+
+FunTab:Button({
+    Title = "🌪 Spinbot Insano",
     Callback = function()
         pcall(function()
             task.spawn(function()
@@ -644,59 +791,74 @@ FunTab:AddButton({
 -- ==========================================
 -- 📡 ABA 10: WEBHOOK DISCORD
 -- ==========================================
-local WebhookTab = Window:MakeTab({Name = "Webhook 📡", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-WebhookTab:AddSection({Name = "Notificações"})
-WebhookTab:AddTextbox({Name = "URL do Webhook", Default = "", TextDisappear = false, Callback = function(v) Config.WebhookURL = v end})
+local WebhookTab = Window:Tab({Title = "Webhook 📡", Icon = "globe"})
+WebhookTab:Section({Title = "Notificações"})
+
+WebhookTab:Input({
+    Title = "URL do Webhook",
+    Default = "",
+    Placeholder = "Cole a URL do Webhook aqui...",
+    Callback = function(v) Config.WebhookURL = v end
+})
 
 -- ==========================================
 -- 🛠️ ABA 11: CONFIGURAÇÕES AVANÇADAS
 -- ==========================================
-local AdvancedConfigTab = Window:MakeTab({Name = "Configurações 🛠️", Icon = "rbxassetid://4483345998", PremiumOnly = false})
+local AdvancedConfigTab = Window:Tab({Title = "Configurações 🛠️", Icon = "sliders"})
+AdvancedConfigTab:Section({Title = "Preferências do Painel & Sistema"})
 
-AdvancedConfigTab:AddSection({Name = "Preferências do Painel & Sistema"})
-
-AdvancedConfigTab:AddToggle({
-    Name = "🔔 Notificações Visuais da UI", Default = true,
+AdvancedConfigTab:Toggle({
+    Title = "🔔 Notificações Visuais da UI",
+    Default = true,
     Callback = function(v) Config.UINotifications = v end
 })
 
-AdvancedConfigTab:AddToggle({
-    Name = "🐛 Modo Debug (Console Avançado)", Default = false,
+AdvancedConfigTab:Toggle({
+    Title = "🐛 Modo Debug (Console Avançado)",
+    Default = false,
     Callback = function(v) 
         Config.DebugMode = v 
         if v then print("[ADMNAH HUB] Modo Debug Ativado com Sucesso!") end
     end
 })
 
-AdvancedConfigTab:AddSlider({
-    Name = "Velocidade Padrão do Voo de Ovo", Min = 100, Max = 1500, Default = 800, Color = Color3.fromRGB(255, 128, 0), Increment = 50,
+AdvancedConfigTab:Slider({
+    Title = "Velocidade Padrão do Voo de Ovo",
+    Step = 50,
+    Value = {Min = 100, Max = 1500, Default = 800},
     Callback = function(v) Config.FlightSpeed = v end
 })
 
-AdvancedConfigTab:AddButton({
-    Name = "💾 Salvar Configurações Atuais",
+AdvancedConfigTab:Button({
+    Title = "💾 Salvar Configurações Atuais",
     Callback = function()
-        OrionLib:MakeNotification({Name = "Configurações Salvas! 💾", Content = "Suas preferências foram gravadas com sucesso.", Image = "rbxassetid://4483345998", Time = 3})
+        if Config.UINotifications then
+            WindUI:Notify({Title = "Configurações Salvas! 💾", Content = "Suas preferências foram gravadas com sucesso.", Duration = 3, Icon = "check"})
+        end
     end
 })
 
-AdvancedConfigTab:AddButton({
-    Name = "🔄 Restaurar Padrões de Fábrica",
+AdvancedConfigTab:Button({
+    Title = "🔄 Restaurar Padrões de Fábrica",
     Callback = function()
         Config.FlightSpeed = 800
         Config.DebugMode = false
         Config.UINotifications = true
-        OrionLib:MakeNotification({Name = "Resetado! ⚙️", Content = "As configurações retornaram ao padrão.", Image = "rbxassetid://4483345998", Time = 3})
+        if Config.UINotifications then
+            WindUI:Notify({Title = "Resetado! ⚙️", Content = "As configurações retornaram ao padrão.", Duration = 3, Icon = "check"})
+        end
     end
 })
 
 -- ==========================================
 -- ⚙️ ABA 12: UTILIDADES & SISTEMA
 -- ==========================================
-local ConfigTab = Window:MakeTab({Name = "Utilidades ⚙️", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-ConfigTab:AddSection({Name = "Sistema"})
-ConfigTab:AddToggle({
-    Name = "Anti-AFK Inteligente", Default = true,
+local ConfigTab = Window:Tab({Title = "Utilidades ⚙️", Icon = "settings"})
+ConfigTab:Section({Title = "Sistema"})
+
+ConfigTab:Toggle({
+    Title = "Anti-AFK Inteligente",
+    Default = true,
     Callback = function(v)
         Config.AntiAFK = v
         LocalPlayer.Idled:Connect(function()
@@ -707,18 +869,20 @@ ConfigTab:AddToggle({
         end)
     end
 })
-ConfigTab:AddButton({
-    Name = "Reentrar no Servidor (Rejoin)",
+
+ConfigTab:Button({
+    Title = "Reentrar no Servidor (Rejoin)",
     Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
 })
-ConfigTab:AddButton({
-    Name = "Destruir Hub Completamente",
+
+ConfigTab:Button({
+    Title = "Destruir Hub Completamente",
     Callback = function()
         pcall(function()
             if safeZoneMarker then safeZoneMarker:Destroy() end
-            OrionLib:Destroy()
+            WindUI:Destroy()
         end)
     end
 })
 
-OrionLib:Init()
+print("[ADMNAH HUB] Versão Definitiva com Ant Guard Inicializada! 👑⚡")
